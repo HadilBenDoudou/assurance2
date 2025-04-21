@@ -1,6 +1,6 @@
 package com.example.assurance2.config;
 
-
+import com.example.assurance2.service.CustomUserDetailsService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -8,19 +8,20 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.logging.Logger;
 
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    private static final Logger LOGGER = Logger.getLogger(JwtAuthenticationFilter.class.getName());
     private final JwtUtil jwtUtil;
-    private final UserDetailsService userDetailsService;
+    private final CustomUserDetailsService userDetailsService;
 
-    public JwtAuthenticationFilter(JwtUtil jwtUtil, UserDetailsService userDetailsService) {
+    public JwtAuthenticationFilter(JwtUtil jwtUtil, CustomUserDetailsService userDetailsService) {
         this.jwtUtil = jwtUtil;
         this.userDetailsService = userDetailsService;
     }
@@ -30,7 +31,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         // Skip authentication for /api/auth/** endpoints
         String requestPath = request.getRequestURI();
+        LOGGER.info("Processing request for path: " + requestPath);
         if (requestPath.startsWith("/api/auth/")) {
+            LOGGER.info("Skipping authentication for path: " + requestPath);
             filterChain.doFilter(request, response);
             return;
         }
@@ -44,6 +47,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 email = jwtUtil.getEmailFromToken(token);
             } catch (Exception e) {
+                LOGGER.warning("Token validation failed: " + e.getMessage());
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                 response.getWriter().write("Invalid or expired token: " + e.getMessage());
                 return;

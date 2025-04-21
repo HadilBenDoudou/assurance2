@@ -1,28 +1,19 @@
 package com.example.assurance2.Controller;
 
-
 public class AuthResponse {
     private String token;
-    private long expiresIn;
+    private Long expirationTime;
 
-    public AuthResponse(String token, long expiresIn) {
+    public AuthResponse(String token, Long expirationTime) {
         this.token = token;
-        this.expiresIn = expiresIn;
+        this.expirationTime = expirationTime;
     }
 
     public String getToken() {
         return token;
     }
 
-    public void setToken(String token) {
-        this.token = token;
-    }
-
-    public long getExpiresIn() {
-        return expiresIn;
-    }
-
-    public void setExpiresIn(long expiresIn) {
-        this.expiresIn = expiresIn;
+    public Long getExpirationTime() {
+        return expirationTime;
     }
 }

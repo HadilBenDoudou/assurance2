@@ -1,9 +1,9 @@
 package com.example.assurance2.Controller;
 
-
-import com.example.assurance2.Model.User;
-import com.example.assurance2.Repository.UserRepository;
+import com.example.assurance2.Model.*;
+import com.example.assurance2.Repository.*;
 import com.example.assurance2.config.JwtUtil;
+import com.example.assurance2.service.PasswordResetService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -11,42 +11,132 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import jakarta.mail.MessagingException;
+
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
     private final AuthenticationManager authenticationManager;
+    private final AdminRepository adminRepository;
+    private final ClientRepository clientRepository;
+    private final ManagerRepository managerRepository;
+    private final EmployeRepository employeRepository;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final PasswordResetService passwordResetService;
 
-    public AuthController(AuthenticationManager authenticationManager, UserRepository userRepository,
-                          PasswordEncoder passwordEncoder, JwtUtil jwtUtil) {
+    public AuthController(AuthenticationManager authenticationManager,
+                          AdminRepository adminRepository,
+                          ClientRepository clientRepository,
+                          ManagerRepository managerRepository,
+                          EmployeRepository employeRepository,
+                          UserRepository userRepository,
+                          PasswordEncoder passwordEncoder,
+                          JwtUtil jwtUtil,
+                          PasswordResetService passwordResetService) {
         this.authenticationManager = authenticationManager;
+        this.adminRepository = adminRepository;
+        this.clientRepository = clientRepository;
+        this.managerRepository = managerRepository;
+        this.employeRepository = employeRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtUtil = jwtUtil;
+        this.passwordResetService = passwordResetService;
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<?> signup(@RequestBody User user) {
-        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+    public ResponseEntity<?> signup(@RequestBody AuthRequestDTO authRequest) {
+        if (userRepository.findByEmail(authRequest.getEmail()).isPresent()) {
             return ResponseEntity.badRequest().body("Email is already taken");
         }
 
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        userRepository.save(user);
+        String encodedPassword = passwordEncoder.encode(authRequest.getMotDePasse());
+
+        switch (authRequest.getRole()) {
+            case ADMIN:
+                Admin admin = new Admin();
+                admin.setCIN(authRequest.getCIN());
+                admin.setNom(authRequest.getNom());
+                admin.setPrenom(authRequest.getPrenom());
+                admin.setEmail(authRequest.getEmail());
+                admin.setMotDePasse(encodedPassword);
+                admin.setRole(Role.ADMIN);
+                adminRepository.save(admin);
+                break;
+            case CLIENT:
+                Client client = new Client();
+                client.setCIN(authRequest.getCIN());
+                client.setNom(authRequest.getNom());
+                client.setPrenom(authRequest.getPrenom());
+                client.setEmail(authRequest.getEmail());
+                client.setMotDePasse(encodedPassword);
+                client.setRole(Role.CLIENT);
+                clientRepository.save(client);
+                break;
+            case MANAGER:
+                Manager manager = new Manager();
+                manager.setCIN(authRequest.getCIN());
+                manager.setNom(authRequest.getNom());
+                manager.setPrenom(authRequest.getPrenom());
+                manager.setEmail(authRequest.getEmail());
+                manager.setMotDePasse(encodedPassword);
+                manager.setRole(Role.MANAGER);
+                managerRepository.save(manager);
+                break;
+            case EMPLOYE:
+                Employe employe = new Employe();
+                employe.setCIN(authRequest.getCIN());
+                employe.setNom(authRequest.getNom());
+                employe.setPrenom(authRequest.getPrenom());
+                employe.setEmail(authRequest.getEmail());
+                employe.setMotDePasse(encodedPassword);
+                employe.setRole(Role.EMPLOYE);
+                employeRepository.save(employe);
+                break;
+            default:
+                return ResponseEntity.badRequest().body("Invalid role");
+        }
+
         return ResponseEntity.ok("User registered successfully");
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody User user) {
+    public ResponseEntity<?> login(@RequestBody AuthRequestDTO authRequest) {
         try {
             Authentication authentication = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(user.getEmail(), user.getPassword()));
-            String token = jwtUtil.generateToken(user.getEmail());
+                    new UsernamePasswordAuthenticationToken(authRequest.getEmail(), authRequest.getMotDePasse()));
+            String token = jwtUtil.generateToken(authRequest.getEmail());
             return ResponseEntity.ok(new AuthResponse(token, jwtUtil.getExpirationTime()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body("Invalid email or password");
         }
     }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        try {
+            passwordResetService.createPasswordResetTokenForUser(request.getEmail());
+            return ResponseEntity.ok("Password reset email sent successfully");
+        } catch (MessagingException e) {
+            return ResponseEntity.status(500).body("Failed to send email: " + e.getMessage());
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@RequestParam String token, @RequestBody ResetPasswordRequest request) {
+        try {
+            passwordResetService.resetPassword(token, request.getNewPassword());
+            return ResponseEntity.ok("Password reset successfully");
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 }
+
+
+
+

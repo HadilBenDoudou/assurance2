@@ -1,6 +1,5 @@
 package com.example.assurance2.config;
 
-
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +23,7 @@ public class JwtUtil {
 
     public String generateToken(String email) {
         return Jwts.builder()
-                .setSubject(email) // Use email as the subject
+                .setSubject(email)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expirationTime))
                 .signWith(key)
