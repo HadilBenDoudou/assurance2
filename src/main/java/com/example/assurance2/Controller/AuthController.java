@@ -12,6 +12,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.mail.MessagingException;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -135,8 +136,90 @@ public class AuthController {
             return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
+
+    @GetMapping("/account")
+    public ResponseEntity<?> getAccount(HttpServletRequest request) {
+        String email = extractEmailFromToken(request);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return ResponseEntity.ok(user);
+    }
+
+    @PutMapping("/account/update")
+    public ResponseEntity<?> updateAccount(HttpServletRequest request, @RequestBody UpdateProfileRequest updateRequest) {
+        String email = extractEmailFromToken(request);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Check if the new email is already taken by another user
+        if (updateRequest.getEmail() != null && !updateRequest.getEmail().equals(email)) {
+            if (userRepository.findByEmail(updateRequest.getEmail()).isPresent()) {
+                return ResponseEntity.badRequest().body("Email is already taken");
+            }
+            user.setEmail(updateRequest.getEmail());
+        }
+
+        if (updateRequest.getNom() != null) user.setNom(updateRequest.getNom());
+        if (updateRequest.getPrenom() != null) user.setPrenom(updateRequest.getPrenom());
+        if (updateRequest.getCIN() != null) user.setCIN(updateRequest.getCIN());
+
+        userRepository.save(user);
+        return ResponseEntity.ok("Profile updated successfully");
+    }
+
+    @PostMapping("/account/change-password")
+    public ResponseEntity<?> changePassword(HttpServletRequest request, @RequestBody ChangePasswordRequest changeRequest) {
+        String email = extractEmailFromToken(request);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Verify old password
+        if (!passwordEncoder.matches(changeRequest.getOldPassword(), user.getMotDePasse())) {
+            return ResponseEntity.badRequest().body("Incorrect old password");
+        }
+
+        // Encode and set new password
+        user.setMotDePasse(passwordEncoder.encode(changeRequest.getNewPassword()));
+        userRepository.save(user);
+        return ResponseEntity.ok("Password changed successfully");
+    }
+
+    @DeleteMapping("/account/delete")
+    public ResponseEntity<?> deleteAccount(HttpServletRequest request) {
+        String email = extractEmailFromToken(request);
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Delete user based on role
+        switch (user.getRole()) {
+            case ADMIN:
+                adminRepository.deleteById(user.getId());
+                break;
+            case CLIENT:
+                clientRepository.deleteById(user.getId());
+                break;
+            case MANAGER:
+                managerRepository.deleteById(user.getId());
+                break;
+            case EMPLOYE:
+                employeRepository.deleteById(user.getId());
+                break;
+            default:
+                return ResponseEntity.badRequest().body("Invalid role");
+        }
+
+        userRepository.delete(user);
+        return ResponseEntity.ok("Account deleted successfully");
+    }
+
+    private String extractEmailFromToken(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new RuntimeException("Missing or invalid Authorization header");
+        }
+        String token = authHeader.substring(7);
+        return jwtUtil.getEmailFromToken(token);
+    }
 }
-
-
 
 

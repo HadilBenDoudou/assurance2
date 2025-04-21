@@ -29,10 +29,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
-        // Skip authentication for /api/auth/** endpoints
         String requestPath = request.getRequestURI();
         LOGGER.info("Processing request for path: " + requestPath);
-        if (requestPath.startsWith("/api/auth/")) {
+        if (requestPath.startsWith("/api/auth/") &&
+                (requestPath.endsWith("/signup") ||
+                        requestPath.endsWith("/login") ||
+                        requestPath.endsWith("/forgot-password") ||
+                        requestPath.endsWith("/reset-password"))) {
             LOGGER.info("Skipping authentication for path: " + requestPath);
             filterChain.doFilter(request, response);
             return;
@@ -52,6 +55,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 response.getWriter().write("Invalid or expired token: " + e.getMessage());
                 return;
             }
+        } else {
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.getWriter().write("Missing or invalid Authorization header");
+            return;
         }
 
         if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
